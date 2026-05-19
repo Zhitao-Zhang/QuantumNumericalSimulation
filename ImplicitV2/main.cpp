@@ -145,7 +145,7 @@
 #define NX 200         // 应力网格在 x 方向的大小 Nx
 #endif
 #ifndef NT
-#define NT 2500         // 时间步数
+#define NT 4500         // 时间步数
 #endif
 #ifndef NPMLDEF
 #define NPMLDEF 30     // 四周 PML 厚度（单位：网格数）
