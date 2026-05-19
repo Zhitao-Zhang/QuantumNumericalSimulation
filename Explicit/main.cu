@@ -140,10 +140,10 @@ int main(void)
 	const int BLOCK_Y = BLOCK_SIZE_Y;
 
 	int sx = NX_ext / 2;
-	int sy = 40;
+	int sy = NY_ext / 2 - 40;
 	int sn = IDX2(sx, sy, NX_ext);
 
-	int NT = 3500;
+	int NT = 4500;
 	float H = 10.0f;
 	float RC = 1.0e-6f;
 	float DT = 1.0e-4f;
