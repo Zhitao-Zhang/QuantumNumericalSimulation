@@ -87,6 +87,26 @@ Serial/
 | 高速夹层 | `Vp=6000, Vs=3400, ρ=2770, iz∈[100,120)` | 一致 |
 | PML | ADE-PML（8 个辅助场） | **不启用**（文档 §14） |
 | 求解 | Jacobi-BiCGSTAB | 一致 |
+| PML | ADE-PML（8 个 ψ 辅助场）NP=30 | ADE-PML（8 个 ψ 辅助场）NP=30 |
+
+---
+
+## 3.5 PML 实现（本项目 vs FDM）
+
+**共同点**：都用 ADE-PML，都引入 8 个 ψ 辅助场并入 `Ax=b`，ψ 采用指数-梯形离散：
+
+$$
+\psi^{n+1} + (d\Delta t/2) g^{n+1} = E \cdot [ \psi^n - (d\Delta t/2) g^n ], \quad E = e^{-d\Delta t}
+$$
+
+**FEM 具体做法**（本目录）：
+
+- 所有 ψ 场用 P1 连续，与主 5 场共节点，共 `13 * Nnodes` DOF；
+- ψ 行的“质量”用 **lumped mass**（`M_L[k] = ∫ N_k dΩ`），保证 `d=0` 处 `ψ^{n+1}=ψ^n`；
+- ψ 与主场的耦合矩阵是 `G_S,α_ij = ∫ N_i ∂N_j/∂α dΩ = dN_dα[j]·|A|/3`（P1 三角闭式）；
+- `d_α(x)` 只按节点采样一维数组 `dampx[ix]`, `dampz[iz]`（比 FDM 简单，因为无交错网格）；
+- `NPMLDEF=0` 时全部 ψ 行退化为 `M_L·ψ^{n+1}=M_L·ψ^n`，程序自动关掉 PML，与原
+  「无 PML」版本 trace **逐位一致**。
 
 ---
 
@@ -101,14 +121,59 @@ make                # 默认 200x200 x 4500 步
 冒烟测试（≈几秒钟即可跑通全流程）：
 
 ```bash
-make small          # 50x50, 800 步, 无夹层
+make small          # 50x50, 800 步, NP=10 (PML 开)
+make small_nopml    # 50x50, 800 步, NP=0  (PML 关，用于回归对比)
 ```
+
+`small_nopml` 用来做**回归验证**：新版（13 块 + PML 关闭）应与老版
+（5 块无 PML）trace 逐位相同——已实证。
 
 也可以按需覆盖任意参数：
 
 ```bash
 make CXXFLAGS+="-DNT=2000 -DBICG_TOL=1e-8"
 ```
+
+### 4.1 数值伪迹修正的编译开关
+
+`velocity-stress` FEM 的 4 个坑，按重要性排序（重要教训见 CHANGELOG SESSION 5）：
+
+| 宏 | 默认 | 打开时行为 |
+|---|---|---|
+| `USE_BACKWARD_EULER`    | 未定义（→ **Crank-Nicolson**，SESSION 6，对齐 FDM） | 退回 Backward Euler |
+| `USE_LUMPED_MASS`       | 未定义（→ **consistent mass**，SESSION 5 修正） | 强制 lumped mass（破坏波传播，仅诊断） |
+| `USE_Q1_MESH`           | 未定义（→ **P1 三角 Union Jack**） | 换成 Q1 双线性四边形网格（每 cell 一个单元）；DOF 布局不变，可与 P1 直接对比 |
+| `NO_UNION_JACK`         | 未定义（→ **Union Jack 三角剖分**） | 回退到"全 SW-NE 对角"，波场沿对角方向偏置（P1 tri 才生效） |
+| `SOURCE_SMOOTH_RADIUS`  | **0**（→ 集中源） | ≥1 时开高斯空间平滑；SESSION 4 曾默认 3，SESSION 5 关掉 |
+| `SOURCE_SMOOTH_SIGMA`   | 1.0 cells | Gaussian σ（仅在 RADIUS≥1 时使用） |
+| `NO_SOURCE_SMOOTH`      | 未定义 | 显式关闭平滑（与默认等价，冗余保留兼容旧脚本） |
+
+`USE_CONSISTENT_MASS` 现在是**噪声名**（默认就已经是 consistent），但保留可用不
+影响任何行为。旧脚本里带这个宏也照常工作。
+
+快速对照命令：
+
+```bash
+# 默认（推荐）
+make
+
+# Q1 四边形替代 P1 三角，同时也是默认 consistent mass
+make CXXFLAGS+="-DUSE_Q1_MESH"
+
+# 复现 SESSION 5 之前的（有 bug 的）行为，用于对照实验
+make CXXFLAGS+="-DUSE_LUMPED_MASS -DSOURCE_SMOOTH_RADIUS=3 -DSOURCE_SMOOTH_SIGMA=1.7"
+
+# 无 PML 均匀介质做正确性验证：应该看到清晰圆形 P 波
+make CXXFLAGS+="-DNBH=0 -DNPMLDEF=0 -DNT=800"
+```
+
+**关键教训（SESSION 5）**：
+- **velocity-stress 一阶系统必须用 consistent mass**。lumped mass 只对 displacement 二阶
+  系统 (M ü = -K u) 是安全的。
+- P1 tri 与 Q1 quad 在均匀介质下**行为几乎相同**（都对 = 都错），说明网格类型不是
+  波动 FEM 精度的关键。真正影响精度的是：mass 矩阵、时间格式、多项式阶数、staggering。
+- 剩余的 P1-P1 数值色散（尾部小振荡）是**低阶格式固有**的，主波前已正确；进一步
+  减小需要更高阶元（P2/spectral）或换 CN 时间格式。
 
 ---
 

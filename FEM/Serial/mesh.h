@@ -32,7 +32,7 @@
 
 namespace femmesh {
 
-// 单个三角形单元
+// 单个 P1 三角形单元
 struct Triangle {
     int  nodes[3];   // 三个顶点的 global node id (CCW 顺序)
     int  cell_id;    // 所属 cell 编号 (用于查材料)
@@ -40,6 +40,24 @@ struct Triangle {
     double A_signed; // 有符号面积（这里一律 > 0）
     double dN_dx[3]; // 形函数梯度 x 分量（每个三角形常数）
     double dN_dz[3];
+};
+
+// 单个 Q1 四边形单元（在规则矩形网格上，每个 cell 一个单元）
+//   Node local ordering: 0=SW, 1=SE, 2=NE, 3=NW  (CCW，与 CIM_FEM guide 一致)
+//
+//   Q1 双线性基函数 N_a(x,z) = product of 1D linear basis：
+//       N_SW = (1-ξ)(1-η)     N_SE = ξ(1-η)
+//       N_NW = (1-ξ)η         N_NE = ξη        (ξ=x/dx, η=z/dz)
+//
+//   注意 ∂N/∂x, ∂N/∂z 在 Q1 元里**不是常数**（依赖 z 或 x），因此
+//   我们把 4×4 局部矩阵 M0[i][j] = ∫∫ N_i N_j dxdz  与
+//   Dx[i][j] = ∫∫ N_i ∂N_j/∂x dxdz  等**闭式解析积分**直接
+//   放到 assembler 里，不逐单元存 ∂N 数组。
+struct Quad {
+    int nodes[4];    // SW, SE, NE, NW (global node id, CCW)
+    int cell_id;
+    double dx_val;   // 边长（当前为常量 dx）—— 为将来非均匀网格保留
+    double dz_val;
 };
 
 class Mesh {
@@ -50,21 +68,40 @@ public:
     std::vector<double> x_node;
     std::vector<double> z_node;
 
-    // 三角形连接表（大小 = Ntri）
+    // P1 三角形连接表（USE_Q1_MESH 时为空）
     std::vector<Triangle> triangles;
+
+    // Q1 四边形连接表（默认关闭为空，`-DUSE_Q1_MESH` 时填充）
+    std::vector<Quad> quads;
 
     // 单元 -> cell 属性索引（大小 = Ncells），仅结构上暴露
     std::vector<int> cell_id_of_tri;
+
+    // Lumped 质量（每节点，大小 = Nnodes）
+    //   M_L[k] = Σ_{e ∋ k} ∫_e N_k dΩ = ∫ N_k dΩ
+    //   ψ 方程行的对角元 —— 保证 PML 外 (d=0) 时  ψ^{n+1} = ψ^n
+    //
+    //   P1 三角内部节点：6 邻元 × A_tri/3 = 6·(dx·dz/2)/3 = dx·dz
+    //   Q1 四边形内部节点：4 邻元 × (dx·dz/4) = dx·dz  ← 完全一样
+    std::vector<double> M_L;
+
+    // Consistent mass 对角元（σ 标量场，每节点）
+    //   M0_diag[k] = Σ_{e∋k} |A_e|/6  (P1)；用于声源 RHS 缩放，对齐 FDM identity mass
+    std::vector<double> M0_diag;
 
     // 每个 cell 的 (icx, icz) —— 供 material 层读取
     static void cell_ij(int cell_id, int &icx, int &icz);
 
     int n_nodes() const { return (int)x_node.size(); }
     int n_tris () const { return (int)triangles.size(); }
+    int n_quads() const { return (int)quads.size(); }
 
 private:
     void build_nodes();
     void build_triangles();
+    void build_quads();
+    void build_lumped_mass();
+    void build_M0_diagonal();
 };
 
 // 计算 P1 三角形的形函数梯度与面积

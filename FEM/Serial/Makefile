@@ -48,12 +48,44 @@ $(TARGET): $(OBJS)
 run: $(TARGET)
 	./$(TARGET)
 
-# 快速冒烟测试：50 x 50 网格，800 步
-small: CXXFLAGS += -DNZ=50 -DNX=50 -DNT=800 -DNBH=0 -DSNAP_STRIDE=20
+# 快速冒烟测试：50 x 50 网格，800 步（含 PML）
+small: CXXFLAGS += -DNZ=50 -DNX=50 -DNT=800 -DNBH=0 -DSNAP_STRIDE=20 -DNPMLDEF=10
 small: clean $(TARGET)
 	./$(TARGET)
 
-.PHONY: all run small clean cleanall
+# 无 PML 冒烟测试：验证 NPMLDEF=0 时退化为旧行为
+small_nopml: CXXFLAGS += -DNZ=50 -DNX=50 -DNT=800 -DNBH=0 -DSNAP_STRIDE=20 -DNPMLDEF=0
+small_nopml: clean $(TARGET)
+	./$(TARGET)
+
+# ================= Q1 四边形网格测试 =================
+# 用 Q1 双线性四边形单元代替 P1 三角形（编译期 -DUSE_Q1_MESH）
+# 目的：诊断 P1-P1 velocity-stress 是否是散射波包/环的根源
+# 每 cell 一个 4-node 单元；每节点连接 3×3 stencil（8 邻居），
+# 更接近 FDM 的中心差分行为。
+#
+# 用法：
+#   make small_q1        # 50x50, 800 步 (Q1 + PML)  快速烟测
+#   make q1              # 全尺寸 200x200 (Q1)
+#   make q1_homo         # 200x200 (Q1) 均匀介质 (NBH=0)
+q1: CXXFLAGS += -DUSE_Q1_MESH
+q1: clean $(TARGET)
+	./$(TARGET)
+
+q1_homo: CXXFLAGS += -DUSE_Q1_MESH -DNBH=0
+q1_homo: clean $(TARGET)
+	./$(TARGET)
+
+small_q1: CXXFLAGS += -DUSE_Q1_MESH -DNZ=50 -DNX=50 -DNT=800 -DNBH=0 -DSNAP_STRIDE=20 -DNPMLDEF=10
+small_q1: clean $(TARGET)
+	./$(TARGET)
+
+# 均匀介质对比目标：用 P1 三角、均匀介质，能干净地检验散射是否来自离散化本身
+homo: CXXFLAGS += -DNBH=0
+homo: clean $(TARGET)
+	./$(TARGET)
+
+.PHONY: all run small small_nopml small_q1 q1 q1_homo homo clean cleanall
 clean:
 	rm -f $(TARGET) $(OBJS)
 

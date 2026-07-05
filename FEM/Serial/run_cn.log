@@ -1,0 +1,123 @@
+==== 2D Velocity-Stress FEM + ADE-PML (P1 tri, Crank-Nicolson, serial) ====
+Grid : Nx=200, Nz=200,  dx=10, dz=10,  dt=0.0001,  NT=2000,  NP=30
+Blocks (13):  vx=0 vz=40000 xx=80000 zz=120000 xz=160000
+             pxSxx=200000 pzSxz=240000 pxSxz=280000 pzSzz=320000
+             pxVx=360000  pzVz=400000  pxVz=440000  pzVx=480000   Ntot=520000
+Source (isou, jsou) = (100, 60)     Recv (irec, jrec) = (100, 110)
+[mesh] element type = P1 tri (Union Jack)   (2 elements / cell)
+[mesh] Nx=200 Nz=200  Nnodes=40000  Ncells=39601  Ntri=79202  (dx=10, dz=10)
+[mesh] Domain: x in [0, 1990] m, z in [0, 1990] m
+[mesh] Lumped mass: min=16.6667  max=133.333  sum=3.9601e+06  (expected sum = (Nx-1)(Nz-1)*dx*dz = 3.9601e+06)
+[material] Background : Vp=5000 Vs=3300 rho=2450  (mu=2.668e+10, lambda=7.889e+09)
+[material] NBH=0  -> homogeneous medium
+[assemble] Ntot=520000  Ntri=79202  (P1 tri Union Jack) ...
+[pml] NP=30  d0_x=345.388  d0_z=345.388
+[pml] xleft=300 xright=1690  zleft=300 zright=1690
+[pml] active x-columns=60/200  z-rows=60/200   max(dampx)=345.388  max(dampz)=345.388
+[time] Crank-Nicolson  (hc=dt/2=5e-05)  — matches FDM/ImplicitV2
+[assemble] done.  nnz(A)=7943746  nnz(M)=1712010   (2.31 s)
+[solver] using BiCGSTAB(Jacobi)   (tol=1.0e-09, max_iter=5000)
+[trace] rec_node=22100 (dof_xx=102100)  src_node=12100 (dof_xx=92100)
+it=   0  t=0.0000 s  [BiCGSTAB(Jacobi)] iters=  12  res=7.233e-10  sou=1.844e-05  txx(rec)=0.000e+00
+it=  20  t=0.0020 s  [BiCGSTAB(Jacobi)] iters=  11  res=8.123e-10  sou=6.628e-05  txx(rec)=6.897e-31
+it=  40  t=0.0040 s  [BiCGSTAB(Jacobi)] iters=  11  res=5.735e-10  sou=2.205e-04  txx(rec)=2.564e-27
+it=  60  t=0.0060 s  [BiCGSTAB(Jacobi)] iters=  11  res=5.188e-10  sou=6.782e-04  txx(rec)=9.260e-25
+it=  80  t=0.0080 s  [BiCGSTAB(Jacobi)] iters=  11  res=5.141e-10  sou=1.928e-03  txx(rec)=1.010e-22
+it= 100  t=0.0100 s  [BiCGSTAB(Jacobi)] iters=  11  res=4.661e-10  sou=5.057e-03  txx(rec)=5.082e-21
+it= 120  t=0.0120 s  [BiCGSTAB(Jacobi)] iters=  11  res=4.088e-10  sou=1.222e-02  txx(rec)=1.465e-19
+it= 140  t=0.0140 s  [BiCGSTAB(Jacobi)] iters=  11  res=3.598e-10  sou=2.716e-02  txx(rec)=2.746e-18
+it= 160  t=0.0160 s  [BiCGSTAB(Jacobi)] iters=  11  res=3.095e-10  sou=5.537e-02  txx(rec)=3.642e-17
+it= 180  t=0.0180 s  [BiCGSTAB(Jacobi)] iters=  10  res=8.612e-10  sou=1.032e-01  txx(rec)=3.619e-16
+it= 200  t=0.0200 s  [BiCGSTAB(Jacobi)] iters=  10  res=6.536e-10  sou=1.749e-01  txx(rec)=2.815e-15
+it= 220  t=0.0220 s  [BiCGSTAB(Jacobi)] iters=  10  res=4.314e-10  sou=2.675e-01  txx(rec)=1.772e-14
+it= 240  t=0.0240 s  [BiCGSTAB(Jacobi)] iters=  10  res=7.236e-10  sou=3.651e-01  txx(rec)=9.282e-14
+it= 260  t=0.0260 s  [BiCGSTAB(Jacobi)] iters=  10  res=4.028e-10  sou=4.352e-01  txx(rec)=4.140e-13
+it= 280  t=0.0280 s  [BiCGSTAB(Jacobi)] iters=   9  res=6.920e-10  sou=4.336e-01  txx(rec)=1.606e-12
+it= 300  t=0.0300 s  [BiCGSTAB(Jacobi)] iters=   9  res=6.345e-10  sou=3.194e-01  txx(rec)=5.528e-12
+it= 320  t=0.0320 s  [BiCGSTAB(Jacobi)] iters=   8  res=4.069e-10  sou=7.758e-02  txx(rec)=1.717e-11
+it= 340  t=0.0340 s  [BiCGSTAB(Jacobi)] iters=  10  res=6.879e-10  sou=-2.618e-01  txx(rec)=4.885e-11
+it= 360  t=0.0360 s  [BiCGSTAB(Jacobi)] iters=  10  res=9.043e-10  sou=-6.209e-01  txx(rec)=1.288e-10
+it= 380  t=0.0380 s  [BiCGSTAB(Jacobi)] iters=  10  res=6.967e-10  sou=-8.965e-01  txx(rec)=3.173e-10
+it= 400  t=0.0400 s  [BiCGSTAB(Jacobi)] iters=  10  res=5.852e-10  sou=-1.000e+00  txx(rec)=7.319e-10
+it= 420  t=0.0420 s  [BiCGSTAB(Jacobi)] iters=  10  res=8.748e-10  sou=-8.965e-01  txx(rec)=1.581e-09
+it= 440  t=0.0440 s  [BiCGSTAB(Jacobi)] iters=  10  res=6.770e-10  sou=-6.209e-01  txx(rec)=3.190e-09
+it= 460  t=0.0460 s  [BiCGSTAB(Jacobi)] iters=   8  res=9.523e-10  sou=-2.618e-01  txx(rec)=5.989e-09
+it= 480  t=0.0480 s  [BiCGSTAB(Jacobi)] iters=   9  res=6.839e-10  sou=7.758e-02  txx(rec)=1.041e-08
+it= 500  t=0.0500 s  [BiCGSTAB(Jacobi)] iters=   9  res=6.029e-10  sou=3.194e-01  txx(rec)=1.664e-08
+it= 520  t=0.0520 s  [BiCGSTAB(Jacobi)] iters=   9  res=3.927e-10  sou=4.336e-01  txx(rec)=2.417e-08
+it= 540  t=0.0540 s  [BiCGSTAB(Jacobi)] iters=  10  res=2.879e-10  sou=4.352e-01  txx(rec)=3.136e-08
+it= 560  t=0.0560 s  [BiCGSTAB(Jacobi)] iters=  10  res=1.713e-10  sou=3.651e-01  txx(rec)=3.509e-08
+it= 580  t=0.0580 s  [BiCGSTAB(Jacobi)] iters=   9  res=6.356e-10  sou=2.675e-01  txx(rec)=3.107e-08
+it= 600  t=0.0600 s  [BiCGSTAB(Jacobi)] iters=  10  res=9.667e-10  sou=1.749e-01  txx(rec)=1.514e-08
+it= 620  t=0.0620 s  [BiCGSTAB(Jacobi)] iters=   9  res=8.719e-10  sou=1.032e-01  txx(rec)=-1.449e-08
+it= 640  t=0.0640 s  [BiCGSTAB(Jacobi)] iters=   9  res=6.338e-10  sou=5.537e-02  txx(rec)=-5.480e-08
+it= 660  t=0.0660 s  [BiCGSTAB(Jacobi)] iters=   8  res=9.245e-10  sou=2.716e-02  txx(rec)=-9.670e-08
+it= 680  t=0.0680 s  [BiCGSTAB(Jacobi)] iters=   9  res=5.391e-10  sou=1.222e-02  txx(rec)=-1.266e-07
+it= 700  t=0.0700 s  [BiCGSTAB(Jacobi)] iters=   8  res=6.385e-10  sou=5.057e-03  txx(rec)=-1.310e-07
+it= 720  t=0.0720 s  [BiCGSTAB(Jacobi)] iters=   8  res=6.548e-10  sou=1.928e-03  txx(rec)=-1.032e-07
+it= 740  t=0.0740 s  [BiCGSTAB(Jacobi)] iters=   8  res=7.266e-10  sou=6.782e-04  txx(rec)=-4.794e-08
+it= 760  t=0.0760 s  [BiCGSTAB(Jacobi)] iters=   8  res=9.191e-10  sou=2.205e-04  txx(rec)=1.869e-08
+it= 780  t=0.0780 s  [BiCGSTAB(Jacobi)] iters=   9  res=3.626e-10  sou=6.628e-05  txx(rec)=7.508e-08
+it= 800  t=0.0800 s  [BiCGSTAB(Jacobi)] iters=   9  res=3.723e-10  sou=1.844e-05  txx(rec)=1.037e-07
+it= 820  t=0.0820 s  [BiCGSTAB(Jacobi)] iters=   9  res=3.733e-10  sou=4.754e-06  txx(rec)=9.912e-08
+it= 840  t=0.0840 s  [BiCGSTAB(Jacobi)] iters=   9  res=3.730e-10  sou=1.136e-06  txx(rec)=6.922e-08
+it= 860  t=0.0860 s  [BiCGSTAB(Jacobi)] iters=   9  res=3.613e-10  sou=2.515e-07  txx(rec)=3.048e-08
+it= 880  t=0.0880 s  [BiCGSTAB(Jacobi)] iters=   8  res=9.951e-10  sou=5.167e-08  txx(rec)=-7.470e-10
+it= 900  t=0.0900 s  [BiCGSTAB(Jacobi)] iters=   9  res=3.558e-10  sou=9.849e-09  txx(rec)=-1.509e-08
+it= 920  t=0.0920 s  [BiCGSTAB(Jacobi)] iters=   9  res=3.609e-10  sou=1.743e-09  txx(rec)=-1.230e-08
+it= 940  t=0.0940 s  [BiCGSTAB(Jacobi)] iters=   9  res=3.651e-10  sou=2.863e-10  txx(rec)=1.226e-09
+it= 960  t=0.0960 s  [BiCGSTAB(Jacobi)] iters=   9  res=3.753e-10  sou=4.369e-11  txx(rec)=1.677e-08
+it= 980  t=0.0980 s  [BiCGSTAB(Jacobi)] iters=   9  res=3.934e-10  sou=6.192e-12  txx(rec)=2.708e-08
+it=1000  t=0.1000 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.131e-10  sou=8.154e-13  txx(rec)=2.844e-08
+it=1020  t=0.1020 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.301e-10  sou=9.977e-14  txx(rec)=2.114e-08
+it=1040  t=0.1040 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.423e-10  sou=1.135e-14  txx(rec)=8.434e-09
+it=1060  t=0.1060 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.484e-10  sou=1.199e-15  txx(rec)=-5.226e-09
+it=1080  t=0.1080 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.532e-10  sou=1.179e-16  txx(rec)=-1.627e-08
+it=1100  t=0.1100 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.553e-10  sou=1.077e-17  txx(rec)=-2.313e-08
+it=1120  t=0.1120 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.569e-10  sou=9.147e-19  txx(rec)=-2.596e-08
+it=1140  t=0.1140 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.684e-10  sou=7.226e-20  txx(rec)=-2.531e-08
+it=1160  t=0.1160 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.835e-10  sou=5.308e-21  txx(rec)=-2.097e-08
+it=1180  t=0.1180 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.862e-10  sou=3.627e-22  txx(rec)=-1.185e-08
+it=1200  t=0.1200 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.813e-10  sou=2.305e-23  txx(rec)=2.808e-09
+it=1220  t=0.1220 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.804e-10  sou=1.363e-24  txx(rec)=2.177e-08
+it=1240  t=0.1240 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.860e-10  sou=7.496e-26  txx(rec)=4.081e-08
+it=1260  t=0.1260 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.915e-10  sou=3.836e-27  txx(rec)=5.343e-08
+it=1280  t=0.1280 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.917e-10  sou=1.826e-28  txx(rec)=5.324e-08
+it=1300  t=0.1300 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.890e-10  sou=8.087e-30  txx(rec)=3.720e-08
+it=1320  t=0.1320 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.876e-10  sou=3.333e-31  txx(rec)=7.948e-09
+it=1340  t=0.1340 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.894e-10  sou=1.278e-32  txx(rec)=-2.620e-08
+it=1360  t=0.1360 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.967e-10  sou=4.561e-34  txx(rec)=-5.420e-08
+it=1380  t=0.1380 s  [BiCGSTAB(Jacobi)] iters=   9  res=5.108e-10  sou=1.515e-35  txx(rec)=-6.696e-08
+it=1400  t=0.1400 s  [BiCGSTAB(Jacobi)] iters=   9  res=5.250e-10  sou=4.680e-37  txx(rec)=-6.156e-08
+it=1420  t=0.1420 s  [BiCGSTAB(Jacobi)] iters=   9  res=5.258e-10  sou=1.346e-38  txx(rec)=-4.257e-08
+it=1440  t=0.1440 s  [BiCGSTAB(Jacobi)] iters=   9  res=5.118e-10  sou=3.603e-40  txx(rec)=-1.944e-08
+it=1460  t=0.1460 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.988e-10  sou=8.976e-42  txx(rec)=-1.461e-09
+it=1480  t=0.1480 s  [BiCGSTAB(Jacobi)] iters=   9  res=5.005e-10  sou=2.081e-43  txx(rec)=6.720e-09
+it=1500  t=0.1500 s  [BiCGSTAB(Jacobi)] iters=   9  res=5.132e-10  sou=4.491e-45  txx(rec)=6.445e-09
+it=1520  t=0.1520 s  [BiCGSTAB(Jacobi)] iters=   9  res=5.202e-10  sou=9.021e-47  txx(rec)=2.788e-09
+it=1540  t=0.1540 s  [BiCGSTAB(Jacobi)] iters=   9  res=5.138e-10  sou=1.687e-48  txx(rec)=7.627e-10
+it=1560  t=0.1560 s  [BiCGSTAB(Jacobi)] iters=   9  res=5.020e-10  sou=2.935e-50  txx(rec)=2.678e-09
+it=1580  t=0.1580 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.931e-10  sou=4.755e-52  txx(rec)=7.970e-09
+it=1600  t=0.1600 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.889e-10  sou=7.171e-54  txx(rec)=1.480e-08
+it=1620  t=0.1620 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.865e-10  sou=1.007e-55  txx(rec)=2.168e-08
+it=1640  t=0.1640 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.810e-10  sou=1.315e-57  txx(rec)=2.797e-08
+it=1660  t=0.1660 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.695e-10  sou=1.600e-59  txx(rec)=3.336e-08
+it=1680  t=0.1680 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.552e-10  sou=1.812e-61  txx(rec)=3.710e-08
+it=1700  t=0.1700 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.441e-10  sou=1.911e-63  txx(rec)=3.761e-08
+it=1720  t=0.1720 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.379e-10  sou=1.875e-65  txx(rec)=3.306e-08
+it=1740  t=0.1740 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.338e-10  sou=1.713e-67  txx(rec)=2.230e-08
+it=1760  t=0.1760 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.308e-10  sou=1.458e-69  txx(rec)=6.028e-09
+it=1780  t=0.1780 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.295e-10  sou=1.154e-71  txx(rec)=-1.294e-08
+it=1800  t=0.1800 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.268e-10  sou=8.511e-74  txx(rec)=-3.032e-08
+it=1820  t=0.1820 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.178e-10  sou=5.843e-76  txx(rec)=-4.181e-08
+it=1840  t=0.1840 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.055e-10  sou=3.734e-78  txx(rec)=-4.462e-08
+it=1860  t=0.1860 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.003e-10  sou=2.222e-80  txx(rec)=-3.817e-08
+it=1880  t=0.1880 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.099e-10  sou=1.231e-82  txx(rec)=-2.409e-08
+it=1900  t=0.1900 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.306e-10  sou=6.350e-85  txx(rec)=-5.714e-09
+it=1920  t=0.1920 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.482e-10  sou=3.050e-87  txx(rec)=1.248e-08
+it=1940  t=0.1940 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.515e-10  sou=1.364e-89  txx(rec)=2.567e-08
+it=1960  t=0.1960 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.455e-10  sou=5.679e-92  txx(rec)=2.990e-08
+it=1980  t=0.1980 s  [BiCGSTAB(Jacobi)] iters=   9  res=4.429e-10  sou=2.201e-94  txx(rec)=2.360e-08
+Time loop done. Elapsed 463.14 s
+Saved trace_zaxis_txx.dat  shape = Nz x NT = 200 x 2000  (col x_src = 100)
+Done. snap_<field>_itXXXX.dat ; trace_*.dat ; trace_zaxis_txx.dat ; source_time.dat
