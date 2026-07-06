@@ -1,37 +1,37 @@
 /* =============================================================================
- *  config.h
+ *  config.h   —  位移二阶格式（SESSION 7 起，方案 B）
  *  ---------------------------------------------------------------------------
- *  全局仿真参数。所有几何 / 声源 / 材料参数保持与
- *  Quantum/FDM/ImplicitV2/main.cpp 一致，以便 FEM 输出与 FDM 逐点对照。
+ *  【重大变更】丢弃速度–应力一阶 collocated 格式，改成**位移二阶格式**：
  *
- *  与 FDM 的关键区别：
- *    - FEM 使用非交错的 P1 三角形连续单元，所有场（主 5 场 + 8 个 ψ 辅助场）
- *      全部定义在**同一套** Nx * Nz 网格节点上（node-centered）。
- *    - 因此 FEM 里所有 13 个块尺寸都是 Nnodes = Nx * Nz。
+ *      ρ ∂²u/∂t² = ∇·σ(u) + f,      σ = C : ε(u),   ε = ½(∇u + ∇uᵀ)
+ *
+ *  离散后（P1 三角，标准刚度阵）：
+ *
+ *      M ü + C u̇ + K u = f
+ *          M = ∫ ρ N_i N_j        （consistent mass，2 dof/node）
+ *          K = ∫ Bᵀ D B           （标准刚度阵，连中心节点 → 无奇偶解耦）
+ *          C = 吸收层的质量比例阻尼（Rayleigh mass-proportional，仅边界层非零）
+ *
+ *  时间推进：Newmark 平均加速度（β=1/4, γ=1/2，无条件稳定、二阶、无人工阻尼），
+ *      每步解  A a^{n+1} = b，A = M + γ·dt·C + β·dt²·K（与时间无关，装配一次）。
+ *      保留 ILinearSolver / BiCGSTAB / CIM 落位口不变。
+ *
+ *  为什么换：velocity-stress 5 场全 collocated 在同一节点 → 一阶导等效 2Δx
+ *  中心差分 → 奇偶解耦 + 各向异性频散 → 波前菱形（已用 diag_*.py 确诊）。
+ *  位移格式里梯度以 ∫∇N·∇N 出现（连中心节点），各向异性天然小，波前是圆。
  *
  *  ---------------------------------------------------------------------------
- *  未知向量 q 的 13 块（按块偏移顺序）
+ *  未知向量 q 的 2 块布局（按块偏移顺序）
  *  ---------------------------------------------------------------------------
- *      0  : vx          (Nnodes)
- *      1  : vz          (Nnodes)
- *      2  : σxx         (Nnodes)
- *      3  : σzz         (Nnodes)
- *      4  : σxz         (Nnodes)
- *      5  : ψ_xSxx      (Nnodes)   memory of ∂x σxx   (in vx eq)   d = d_x(node)
- *      6  : ψ_zSxz      (Nnodes)   memory of ∂z σxz   (in vx eq)   d = d_z(node)
- *      7  : ψ_xSxz      (Nnodes)   memory of ∂x σxz   (in vz eq)   d = d_x(node)
- *      8  : ψ_zSzz      (Nnodes)   memory of ∂z σzz   (in vz eq)   d = d_z(node)
- *      9  : ψ_xVx       (Nnodes)   memory of ∂x vx    (in σxx/σzz) d = d_x(node)
- *      10 : ψ_zVz       (Nnodes)   memory of ∂z vz    (in σxx/σzz) d = d_z(node)
- *      11 : ψ_xVz       (Nnodes)   memory of ∂x vz    (in σxz)     d = d_x(node)
- *      12 : ψ_zVx       (Nnodes)   memory of ∂z vx    (in σxz)     d = d_z(node)
+ *      0 : ux   (Nnodes)     水平位移
+ *      1 : uz   (Nnodes)     垂直位移
  *
  *  可通过编译宏覆盖：
- *    -DNZ=200 -DNX=200 -DNT=4500
+ *    -DNZ=200 -DNX=200 -DNT=4100
  *    -DDX_VAL=10.0 -DDZ_VAL=10.0 -DDT_VAL=1.0e-4
  *    -DF0_HZ=30.0 -DNBH=40
- *    -DNPMLDEF=30           PML 厚度（cells）；设为 0 完全关闭 PML，退化为旧行为
- *    -DRC_PML=1.0e-6        PML 目标反射系数
+ *    -DNABSDEF=30           吸收层厚度（cells）；设为 0 关闭吸收层
+ *    -DRC_ABS=1.0e-3        吸收层目标残余
  * ===========================================================================*/
 #ifndef FEM_CONFIG_H
 #define FEM_CONFIG_H
@@ -75,26 +75,13 @@ constexpr int Ncells  = NcellX * NcellZ;
 constexpr int Ntri    = Ncells * 2;
 constexpr int Nnodes  = Nx * Nz;
 
-// 5 主场 + 8 个 ψ 辅助场 = 13 个块
-constexpr int NfieldsPerNode = 13;
+// 2 个位移场 = 2 个块
+constexpr int NfieldsPerNode = 2;
 constexpr int Ntot           = Nnodes * NfieldsPerNode;
 
-// 主场偏移
-constexpr int off_vx     = 0  * Nnodes;
-constexpr int off_vz     = 1  * Nnodes;
-constexpr int off_xx     = 2  * Nnodes;
-constexpr int off_zz     = 3  * Nnodes;
-constexpr int off_xz     = 4  * Nnodes;
-
-// PML ψ 偏移（8 个）
-constexpr int off_pxSxx  = 5  * Nnodes;   // in vx eq, ∂x σxx
-constexpr int off_pzSxz  = 6  * Nnodes;   // in vx eq, ∂z σxz
-constexpr int off_pxSxz  = 7  * Nnodes;   // in vz eq, ∂x σxz
-constexpr int off_pzSzz  = 8  * Nnodes;   // in vz eq, ∂z σzz
-constexpr int off_pxVx   = 9  * Nnodes;   // in σxx/σzz, ∂x vx
-constexpr int off_pzVz   = 10 * Nnodes;   // in σxx/σzz, ∂z vz
-constexpr int off_pxVz   = 11 * Nnodes;   // in σxz,     ∂x vz
-constexpr int off_pzVx   = 12 * Nnodes;   // in σxz,     ∂z vx
+// 块偏移
+constexpr int off_ux = 0 * Nnodes;
+constexpr int off_uz = 1 * Nnodes;
 
 // ----------------------------------------------------------------------------
 // 2. 介质参数（固体背景 + 中间高速层，与 FDM 一致）
@@ -138,58 +125,81 @@ inline double ricker(int it)
     return -(1.0 - 2.0 * a * a) * std::exp(-a * a);
 }
 
-// ----------------------------------------------------------------------------
-// 4. PML 参数（与 FDM/ImplicitV2 完全一致的 d(α) 剖面）
-// ----------------------------------------------------------------------------
-#ifndef NPMLDEF
-#define NPMLDEF 30
+// 声源为**各向同性矩张量**（爆炸源）：等效节点力 F_a = M0(t)·∇N_a。
+//   M0(t) = SRC_SCALE · ricker(it)。SRC_SCALE 用 dx·dz（把 FDM 的
+//   stress-glut 密度换算成矩），只影响整体振幅，不影响波前形状。
+#ifndef SRC_SCALE
+#define SRC_SCALE (DX_VAL * DZ_VAL)
 #endif
-#ifndef RC_PML
-#define RC_PML 1.0e-6
+constexpr double src_scale = SRC_SCALE;
+
+// ----------------------------------------------------------------------------
+// 4. Newmark 时间积分参数（平均加速度：无条件稳定、二阶、无人工阻尼）
+// ----------------------------------------------------------------------------
+#ifndef NEWMARK_BETA
+#define NEWMARK_BETA 0.25
+#endif
+#ifndef NEWMARK_GAMMA
+#define NEWMARK_GAMMA 0.5
+#endif
+constexpr double nm_beta  = NEWMARK_BETA;
+constexpr double nm_gamma = NEWMARK_GAMMA;
+
+// ----------------------------------------------------------------------------
+// 5. ADE-PML 吸收边界（unsplit，复坐标拉伸；SESSION 8）
+//   拉伸算子 s_α = 1 + d_α/(iω)，d_α(α) 为方向性阻尼曲线（1/s）。
+//   位移二阶弱形式展开后（详见 assembler.cpp 顶部推导）：
+//       M ü + C u̇ + K_tot u + F_ψ = F_src
+//   其中：
+//       C     = ∫ ρ(d_x + d_z) N_a N_b         （质量比例，对称）
+//       K_tot = 标准刚度 K + 角区弹簧 P         （P = ∫ ρ d_x d_z N_a N_b，对称）
+//       F_ψ   = ψ 记忆变量的 RHS 修正（显式更新，不进 A）
+//   NABS=0 时 d_α≡0 → C=P=ψ=0，精确退化回无 PML 的纯位移格式。
+//
+//   d_α 剖面：多项式（二次）分级，d0 由目标反射系数 RC 反推（Collino-Tsogka）。
+// ----------------------------------------------------------------------------
+#ifndef NABSDEF
+#define NABSDEF 30
+#endif
+#ifndef RC_ABS
+#define RC_ABS 1.0e-4
 #endif
 
-constexpr int    NP      = NPMLDEF;                    // PML 厚度（cells）
-constexpr double RC_pml  = RC_PML;                     // 目标反射系数
-constexpr double V0_pml  = Vp1;                        // 参考速度（用背景 P 波）
-constexpr double DPx     = (double)NP * dx;
-constexpr double DPz     = (double)NP * dz;
+constexpr int    NABS    = NABSDEF;                // PML 厚度（cells）
+constexpr double RC_abs  = RC_ABS;                 // 目标理论反射系数
+constexpr double V0_abs  = Vp1;                    // 参考速度（背景 P 波）
+constexpr double DAx     = (double)NABS * dx;      // PML 物理厚度 x
+constexpr double DAz     = (double)NABS * dz;
 
-// d0 系数（NP=0 时关闭 PML）
-constexpr double d0_x = (NP > 0)
-                      ? (3.0 * V0_pml * 6.907755278982137 / (2.0 * DPx))  // ln(1/1e-6)≈6.9078
-                      : 0.0;
-constexpr double d0_z = (NP > 0)
-                      ? (3.0 * V0_pml * 6.907755278982137 / (2.0 * DPz))
-                      : 0.0;
+// d0 = -(p+1)·V0·ln(RC)/(2·L)，p=2（二次剖面），标准 PML 取值。
+inline double compute_d0_x() { return (NABS > 0) ? (-3.0 * V0_abs * std::log(RC_abs) / (2.0 * DAx)) : 0.0; }
+inline double compute_d0_z() { return (NABS > 0) ? (-3.0 * V0_abs * std::log(RC_abs) / (2.0 * DAz)) : 0.0; }
 
-// 更精确的 d0（构造函数里再算一遍确保和真实 -log(RC) 一致，见 assembler.cpp）
-inline double compute_d0_x() { return 3.0 * V0_pml * std::log(1.0 / RC_pml) / (2.0 * DPx); }
-inline double compute_d0_z() { return 3.0 * V0_pml * std::log(1.0 / RC_pml) / (2.0 * DPz); }
+constexpr double xleft_a  = (double)NABS            * dx;
+constexpr double xright_a = (double)(Nx - 1 - NABS) * dx;
+constexpr double zleft_a  = (double)NABS            * dz;
+constexpr double zright_a = (double)(Nz - 1 - NABS) * dz;
 
-constexpr double xleft_p  = (double)NP           * dx;
-constexpr double xright_p = (double)(Nx - 1 - NP) * dx;
-constexpr double zleft_p  = (double)NP           * dz;
-constexpr double zright_p = (double)(Nz - 1 - NP) * dz;
-
+// 方向性阻尼曲线（PML 核心）：x 方向只看 x 坐标，z 方向只看 z 坐标。
 inline double dampx_at(double x)
 {
-    if (NP <= 0) return 0.0;
+    if (NABS <= 0) return 0.0;
     const double d0 = compute_d0_x();
-    if (x < xleft_p)  return d0 * std::pow((xleft_p  - x) / DPx, 2);
-    if (x > xright_p) return d0 * std::pow((x - xright_p) / DPx, 2);
+    if (x < xleft_a)  return d0 * std::pow((xleft_a  - x) / DAx, 2);
+    if (x > xright_a) return d0 * std::pow((x - xright_a) / DAx, 2);
     return 0.0;
 }
 inline double dampz_at(double z)
 {
-    if (NP <= 0) return 0.0;
+    if (NABS <= 0) return 0.0;
     const double d0 = compute_d0_z();
-    if (z < zleft_p)  return d0 * std::pow((zleft_p  - z) / DPz, 2);
-    if (z > zright_p) return d0 * std::pow((z - zright_p) / DPz, 2);
+    if (z < zleft_a)  return d0 * std::pow((zleft_a  - z) / DAz, 2);
+    if (z > zright_a) return d0 * std::pow((z - zright_a) / DAz, 2);
     return 0.0;
 }
 
 // ----------------------------------------------------------------------------
-// 5. BiCGSTAB 求解器缺省参数
+// 6. BiCGSTAB 求解器缺省参数
 // ----------------------------------------------------------------------------
 #ifndef BICG_MAX_IT
 #define BICG_MAX_IT 5000
@@ -201,7 +211,7 @@ constexpr int    bicg_max_it = BICG_MAX_IT;
 constexpr double bicg_tol    = BICG_TOL;
 
 // ----------------------------------------------------------------------------
-// 6. 输出控制
+// 7. 输出控制
 // ----------------------------------------------------------------------------
 #ifndef SNAP_STRIDE
 #define SNAP_STRIDE 50
@@ -209,23 +219,11 @@ constexpr double bicg_tol    = BICG_TOL;
 constexpr int snap_stride = SNAP_STRIDE;
 
 // ----------------------------------------------------------------------------
-// 7. 常用索引：把 (ix,iz) 二维节点索引转换为 1D global node id
+// 8. 常用索引
 // ----------------------------------------------------------------------------
-inline int node_id(int ix, int iz)   { return ix + iz * Nx; }
-inline int dof_vx    (int ix, int iz){ return off_vx    + node_id(ix, iz); }
-inline int dof_vz    (int ix, int iz){ return off_vz    + node_id(ix, iz); }
-inline int dof_xx    (int ix, int iz){ return off_xx    + node_id(ix, iz); }
-inline int dof_zz    (int ix, int iz){ return off_zz    + node_id(ix, iz); }
-inline int dof_xz    (int ix, int iz){ return off_xz    + node_id(ix, iz); }
-inline int dof_pxSxx (int ix, int iz){ return off_pxSxx + node_id(ix, iz); }
-inline int dof_pzSxz (int ix, int iz){ return off_pzSxz + node_id(ix, iz); }
-inline int dof_pxSxz (int ix, int iz){ return off_pxSxz + node_id(ix, iz); }
-inline int dof_pzSzz (int ix, int iz){ return off_pzSzz + node_id(ix, iz); }
-inline int dof_pxVx  (int ix, int iz){ return off_pxVx  + node_id(ix, iz); }
-inline int dof_pzVz  (int ix, int iz){ return off_pzVz  + node_id(ix, iz); }
-inline int dof_pxVz  (int ix, int iz){ return off_pxVz  + node_id(ix, iz); }
-inline int dof_pzVx  (int ix, int iz){ return off_pzVx  + node_id(ix, iz); }
-
+inline int node_id(int ix, int iz) { return ix + iz * Nx; }
+inline int dof_ux (int ix, int iz) { return off_ux + node_id(ix, iz); }
+inline int dof_uz (int ix, int iz) { return off_uz + node_id(ix, iz); }
 inline int cell_id(int icx, int icz) { return icx + icz * NcellX; }
 
 } // namespace femcfg

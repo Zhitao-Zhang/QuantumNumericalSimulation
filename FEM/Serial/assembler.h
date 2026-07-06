@@ -1,47 +1,27 @@
 /* =============================================================================
- *  assembler.h
+ *  assembler.h   —  位移二阶格式装配层（方案 B / SESSION 7）
  *  ---------------------------------------------------------------------------
- *  从「PDE 弱形式 + P1 三角单元 + ADE-PML」得到全局
+ *  从「位移二阶弹性波弱形式 + P1 三角单元」得到
  *
- *      A x = b
+ *      M ü + C u̇ + K u = f
  *
- *  的组装层（README §3.2 的“离散层”）。
+ *  以及 Newmark 平均加速度的有效系统
  *
- *  未知向量共 13 * Nnodes 个自由度（详见 config.h 的块偏移表）：
- *      5 主场：vx, vz, σxx, σzz, σxz
- *      8 ψ  ：ψ_xSxx, ψ_zSxz, ψ_xSxz, ψ_zSzz,
- *              ψ_xVx , ψ_zVz , ψ_xVz , ψ_zVx
+ *      A a^{n+1} = b,     A = M + γ·dt·C + β·dt²·K   （时间无关，装配一次）
  *
- *  时间格式：
- *      - 主 5 方程：Crank–Nicolson（默认，与 FDM/ImplicitV2 一致）
- *                   A = M + (dt/2)K，b = (M - dt/2·K)q^n + dt·f
- *      - 可选：-DUSE_BACKWARD_EULER 退回 A = M + dt·K，b = M·q^n + dt·f
- *      - 8 个 ψ  ：指数 + 梯形 (与 FDM/ImplicitV2 一致)。
- *          ψ_α^{n+1} = E_α · ψ_α^n + (-d_α·dt/2)·[E_α·g^n + g^{n+1}]
- *          → M_L·ψ_α^{n+1} + (d·dt/2)·G·field^{n+1}
- *              = E·[M_L·ψ_α^n - (d·dt/2)·G·field^n]
- *      其中 M_L 是 lumped mass 对角矩阵，保证 d=0 处 ψ ≡ ψ^0。
+ *  未知向量 2 * Nnodes 个自由度：块布局 [ux; uz]（见 config.h）。
  *
- *  关键块结构：
- *    Row vx (主 5 场耦合已有，加 PML 项)：
- *        A[vx , vx ] += Mρ
- *        A[vx , xx ] += dt·Gx           (Gx_ij = ∫ ∂N_i/∂x N_j)
- *        A[vx , xz ] += dt·Gz
- *        A[vx , ψ_xSxx] += -dt·M0       (ψ 引入 stretched-coord 修正)
- *        A[vx , ψ_zSxz] += -dt·M0
+ *  单元量（P1 三角，B 与 D 在单元内常数）：
+ *      ε = [εxx, εzz, γxz]ᵀ = B u_e,   B(3×6)，每节点列 [dNx,0; 0,dNz; dNz,dNx]
+ *      D = [[λ+2μ, λ,    0 ],
+ *           [λ,    λ+2μ, 0 ],
+ *           [0,    0,    μ ]]                （平面应变各向同性）
+ *      Ke = |A_e| · Bᵀ D B                   （6×6 单元刚度）
+ *      Me = ρ_e · ∫ N_i N_j                  （consistent，块对角 ux/uz 各一份）
+ *      Ce = d_e · Me                         （质量比例阻尼，d_e = 单元平均阻尼）
  *
- *    Row σxx：
- *        A[xx , xx ] += M0
- *        A[xx , vx ] += -dt·DxC         (DxC_ij = ∫ N_i C ∂N_j/∂x)
- *        A[xx , vz ] += -dt·DzL
- *        A[xx , ψ_xVx] += -dt·M_C       (M_C_ij = C_e * M0^e_ij)
- *        A[xx , ψ_zVz] += -dt·M_L
- *
- *    Row ψ_xSxx (以 lumped mass 为对角)：
- *        A[ψ , ψ ] += M_L(node k)
- *        A[ψ , xx ] += (dt/2)·d_x(x_k)·G_S       (G_S = ∫ N_i ∂N_j/∂α)
- *
- *  声源施加：在 (isou, jsou) 节点处，对 σxx / σzz 的 RHS 加 dt·sou_t。
+ *  声源：各向同性矩张量（爆炸源），等效节点力 F_a = M0(t)·∇N_a，
+ *      对源节点邻接的所有三角求和（自平衡、圆对称）。
  * ===========================================================================*/
 #ifndef FEM_ASSEMBLER_H
 #define FEM_ASSEMBLER_H
@@ -55,37 +35,68 @@
 
 namespace femasm {
 
-struct FemSystem {
-    femla::SparseMatrixCSR A;    // (M + dt K + PML 耦合)，与时间无关，只装配一次
-    femla::SparseMatrixCSR M;    // 用于每步 RHS 的 mass 算子（含 ψ 行的 M_L 对角）
+struct ElastSystem {
+    // ---- 进 CIM 的核心：对称正定、常系数、装配一次 ----
+    //   A = M + γ·dt·C + β·dt²·K_eff
+    //   M、C、K_eff 全对称 → A 对称；M SPD + 其余 PSD → A SPD。
+    //   CIM/QUBO 后端把 A x = b 映射成 min ½xᵀAx − bᵀx（A SPD 时凸）即可。
+    femla::SparseMatrixCSR A;
+
+    // ---- 每步 RHS 需要的矩阵（不进 CIM，只做 SpMV 组 b） ----
+    femla::SparseMatrixCSR K_eff;  // 标准刚度 K + PML 角区弹簧 P（对称）
+    femla::SparseMatrixCSR C;      // PML 阻尼 ∫ρ(d_x+d_z)NN（对称，仅 PML 区非零）
+    femla::SparseMatrixCSR K_xx;   // x 方向刚度块（驱动 ψ_xx，不进 A）
+    femla::SparseMatrixCSR K_zz;   // z 方向刚度块（驱动 ψ_zz，不进 A）
     int Ntot = 0;
 
-    // ---- PML 相关（每节点一维缓存） ----
-    std::vector<double> dampx_at_ix;   // d_x(ix·dx),  size Nx
-    std::vector<double> dampz_at_iz;   // d_z(iz·dz),  size Nz
-    std::vector<double> Ex_at_ix;      // exp(-d_x·dt), size Nx
-    std::vector<double> Ez_at_iz;      // exp(-d_z·dt), size Nz
-    int    pml_active_x = 0;
-    int    pml_active_z = 0;
+    double beta = femcfg::nm_beta;
+    double gamma = femcfg::nm_gamma;
+    double dt = femcfg::dt;
+
+    // ---- PML 节点级剖面（方向性） ----
+    std::vector<double> dampx_ix;  // d_x(ix·dx)，size Nx
+    std::vector<double> dampz_iz;  // d_z(iz·dz)，size Nz
+    std::vector<double> Ex_ix;     // exp(-d_x·dt)，size Nx
+    std::vector<double> Ez_iz;     // exp(-d_z·dt)，size Nz
+    std::vector<double> facx_ix;   // (1-Ex)/d_x（d→0 取 dt），size Nx
+    std::vector<double> facz_iz;   // (1-Ez)/d_z（d→0 取 dt），size Nz
+    int    pml_nodes = 0;
+    double damp_max = 0.0;
+
+    // 声源等效节点力系数（时间无关；每步乘 M0(t)）
+    std::vector<int>    src_dof;
+    std::vector<double> src_coef;
 };
 
-// 组装 A 与 M。全部按块 (13 * Nnodes) 布局，DOF 排序同 config.h。
+// 装配 A / K_eff / C / K_xx / K_zz + PML 剖面 + 声源力系数。
 void build_system(const femmesh::Mesh &mesh,
                   const femmat::Material &mat,
                   double dt,
-                  FemSystem &out);
+                  ElastSystem &out);
 
-// 组装本步右端 b。分两部分：
-//   1) 主 5 场：CN 时 b = 2·M·q^n - A·q^n；BE 时 b = M·q^n
-//                加上 σxx, σzz 上的 dt·sou_t 声源（与 FDM 相同，不乘 M_L）
-//   2) 8 个 ψ 场：b = E·(M_L·ψ^n  -  (dt/2)·d·G·field^n)
-//        其中 (G·field)_k 通过一次 element loop 累加计算（"nodal gradient"）
-void assemble_rhs(const FemSystem &sys,
-                  const femmesh::Mesh &mesh,
-                  const std::vector<double> &q_n,
-                  double dt,
-                  double sou_t,
-                  std::vector<double> &b_out);
+// PML 记忆变量显式更新 + 生成 F_ψ（加到内力，即 RHS 减去它）。
+//   输入 u_pred（Newmark 预测位移，已知），in/out ψ_xx、ψ_zz（各 Ntot）。
+//   算法：g = K_xx·u_pred / K_zz·u_pred（SpMV），逐节点指数积分更新 ψ，
+//         F_ψ = ψ_xx + ψ_zz。全部显式，不触碰 A。
+void pml_update_force(const ElastSystem &sys,
+                      const std::vector<double> &u_pred,
+                      std::vector<double> &psi_xx,
+                      std::vector<double> &psi_zz,
+                      std::vector<double> &Fpsi_out);
+
+// 组装本步声源等效力向量 F（大小 Ntot）：F = M0(t) · Σ ∇N_a。
+void assemble_source_force(const ElastSystem &sys,
+                           double sou_t,
+                           std::vector<double> &F_out);
+
+// 从位移场恢复节点应力（面积加权投影），用于与 FDM 快照对照。
+//   sxx, szz, sxz 各大小 Nnodes。
+void recover_nodal_stress(const femmesh::Mesh &mesh,
+                          const femmat::Material &mat,
+                          const std::vector<double> &u,
+                          std::vector<double> &sxx,
+                          std::vector<double> &szz,
+                          std::vector<double> &sxz);
 
 } // namespace femasm
 

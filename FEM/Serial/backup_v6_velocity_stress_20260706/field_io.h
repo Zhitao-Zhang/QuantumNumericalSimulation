@@ -26,16 +26,11 @@ void wfile2d(const char* fn, const float* data, int nrows, int ncols);
 // double vector 版本（内部转 float 写盘，保持 %e 格式一致）
 void wfile2d_d(const char* fn, const std::vector<double> &v, int nrows, int ncols);
 
-// 位移二阶格式的快照：直接给定 5 个已经准备好的 Nz×Nx 场
-//   （vx, vz 来自 Newmark 速度；σxx/σzz/σxz 来自 recover_nodal_stress）
-//   各 std::vector 大小 = Nnodes。写出 snap_vx / snap_vz / snap_txx /
-//   snap_tzz / snap_txz，文件名/格式与 FDM 完全一致，便于逐点对照。
-void write_snapshot_fields(int it, int Nx, int Nz,
-                           const std::vector<double> &vx,
-                           const std::vector<double> &vz,
-                           const std::vector<double> &sxx,
-                           const std::vector<double> &szz,
-                           const std::vector<double> &sxz);
+// 从块向量 q 中抽出 5 个场并写盘 (每个都是 Nz x Nx 的节点网格)
+void write_snapshot(int it,
+                    const std::vector<double> &q,
+                    int Nx, int Nz,
+                    int off_vx, int off_vz, int off_xx, int off_zz, int off_xz);
 
 } // namespace femio
 
