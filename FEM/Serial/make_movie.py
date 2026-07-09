@@ -26,10 +26,14 @@ print(f"found {len(files)} frames")
 # load all frames
 frames = [(it, np.loadtxt(f)) for it, f in files]
 
-# fixed symmetric color scale from a robust global percentile,
-# so relative amplitudes stay comparable across time
-allabs = np.concatenate([np.abs(d).ravel() for _, d in frames])
-vmax = np.percentile(allabs, 99.5)
+# fixed symmetric color scale. Pass an explicit vmax as the 2nd CLI arg
+# (e.g. `make_movie.py txx 1e-4`); otherwise use a robust global percentile
+# so relative amplitudes stay comparable across time.
+if len(sys.argv) > 2:
+    vmax = float(sys.argv[2])
+else:
+    allabs = np.concatenate([np.abs(d).ravel() for _, d in frames])
+    vmax = np.percentile(allabs, 99.5)
 print(f"global vmax = {vmax:.3e}")
 
 fig, ax = plt.subplots(figsize=(7, 6))
